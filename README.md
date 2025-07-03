@@ -1,6 +1,4 @@
-# README
-
-> **Note:** This readme template is based on one from the [Good Docs Project](https://thegooddocsproject.dev). You can find it and a guide to filling it out [here](https://gitlab.com/tgdp/templates/-/tree/main/readme). (_Erase this note after filling out the readme._)
+# STT Report Generator
 
 <h1 align="center">
   <br>
@@ -8,12 +6,11 @@
   <br>
 </h1>
 
-## _Project Name_
-_The project name should match its code's capability so that new users can easily understand what it does._
+## Speech-to-Text Transcription Report Generator
+Automatically generate weekly reports from your STT transcription database using GitHub Actions
 
 ## Owner(s)
 
-_Change to the owner(s) of the new repo. (This template's owners are:)_
 - [@ngawangtrinley](https://github.com/ngawangtrinley)
 - [@mikkokotila](https://github.com/mikkokotila)
 - [@evanyerburgh](https://github.com/evanyerburgh)
@@ -33,55 +30,67 @@ _Change to the owner(s) of the new repo. (This template's owners are:)_
 <hr>
 
 ## Project description
-_Use one of these:_
 
-With _Project Name_ you can _verb_ _noun_...
-
-_Project Name_ helps you _verb_ _noun_...
+With STT Report Generator, you can automatically generate weekly reports from your speech-to-text transcription database. This tool connects to your database, extracts key metrics about your transcription tasks, and generates both CSV data files and markdown summary reports. The entire process is automated using GitHub Actions, which can be scheduled to run on a regular basis.
 
 
 ## Who this project is for
-This project is intended for _target user_ who wants to _user objective_.
+This project is intended for team members and managers who need regular reports on speech-to-text transcription progress without manual data extraction and analysis.
 
 
 ## Project dependencies
-Before using _Project Name_, ensure you have:
-* _Prerequisite 1_
-* _Prerequisite 2_
-* _Prerequisite 3..._
+Before using STT Report Generator, ensure you have:
+* A GitHub account with access to create repository secrets
+* A database containing STT transcription tasks data
+* Database credentials with read access to the transcription data
 
 
 ## Instructions for use
-Get started with _Project Name_ by _(write the first step a user needs to start using the project. Use a verb to start.)_.
+Get started with STT Report Generator by setting up the GitHub Actions workflow and database connection.
+
+### Set up GitHub Actions
+1. Fork or clone this repository
+
+2. Set up your database connection secrets
+   
+   a. Go to your repository's Settings > Secrets > Actions
+   
+   b. Create the following secrets for your PostgreSQL database:
+      - `HOST` - Your database host (e.g., dpg-xxxxxx.oregon-postgres.render.com)
+      - `DBNAME` - Your database name
+      - `DBUSER` - Your database username
+      - `PASSWORD` - Your database password
+
+3. Customize the database query (if needed)
+   
+   Open `generate_report.py` and modify the `query_transcription_data()` function to match your database schema.
+
+### Configure Report Schedule
+1. Adjust the schedule in `.github/workflows/report-generator.yml`
+   
+   The default setting runs every Monday at 9:00 AM UTC:
+   ```yaml
+   schedule:
+     - cron: '0 9 * * 1'  # Every Monday at 9AM UTC
+   ```
+   
+   You can modify this cron expression to change the schedule.
+
+### Run the Report Generator
+1. Manual trigger:
+   
+   a. Go to the Actions tab in your repository
+   
+   b. Select the "Weekly STT Report Generation" workflow
+   
+   c. Click "Run workflow"
+
+2. Automatic schedule:
+   
+   Reports will automatically generate according to your configured schedule
 
 
-### Install _Project Name_
-1. _Write the step here._ 
-
-    _Explanatory text here_ 
-    
-    _(Optional: Include a code sample or screenshot that helps your users complete this step.)_
-
-2. _Write the step here._
- 
-    a. _Substep 1_ 
-    
-    b. _Substep 2_
-
-
-### Configure _Project Name_
-1. _Write the step here._
-2. _Write the step here._
-
-
-### Run _Project Name_
-1. _Write the step here._
-2. _Write the step here._
-
-
-### Troubleshoot _Project Name_
-1. _Write the step here._
-2. _Write the step here._
+### Troubleshooting
 
 <table>
   <tr>
@@ -94,35 +103,29 @@ Get started with _Project Name_ by _(write the first step a user needs to start 
   </tr>
   <tr>
    <td>
-    _Describe the issue here_
+    Workflow fails with database connection error
    </td>
    <td>
-    _Write solution here_
-   </td>
-  </tr>
-  <tr>
-   <td>
-    _Describe the issue here_
-   </td>
-   <td>
-    _Write solution here_
+    Check that your DATABASE_URL secret is correctly formatted and that the database is accessible from GitHub Actions
    </td>
   </tr>
   <tr>
    <td>
-    _Describe the issue here_
+    Query fails with column not found error
    </td>
    <td>
-    _Write solution here_
+    Modify the query in generate_report.py to match your database schema
+   </td>
+  </tr>
+  <tr>
+   <td>
+    Reports not appearing in repository
+   </td>
+   <td>
+    Check the Actions tab for workflow run logs and ensure GitHub Actions has write permissions to your repository
    </td>
   </tr>
 </table>
-
-
-Other troubleshooting supports:
-* _Link to FAQs_
-* _Link to runbooks_
-* _Link to other relevant support information_
 
 
 ## Contributing guidelines
@@ -130,12 +133,11 @@ If you'd like to help out, check out our [contributing guidelines](/CONTRIBUTING
 
 
 ## Additional documentation
-_Include links and brief descriptions to additional documentation._
 
 For more information:
-* [Reference link 1](#)
-* [Reference link 2](#)
-* [Reference link 3](#)
+* [GitHub Actions Documentation](https://docs.github.com/en/actions)
+* [Cron Syntax Reference](https://crontab.guru/)
+* [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
 
 
 ## How to get help

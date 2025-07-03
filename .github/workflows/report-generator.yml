@@ -1,0 +1,44 @@
+name: Weekly STT Report Generation
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9AM UTC
+  workflow_dispatch:      # Allow manual trigger from GitHub
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Run report generation script
+        env:
+          HOST: ${{ secrets.HOST }}
+          DBNAME: ${{ secrets.DBNAME }}
+          DBUSER: ${{ secrets.DBUSER }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: |
+          python generate_report.py
+
+      - name: Commit and push updated reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          git diff --staged --quiet || git commit -m "📊 Weekly STT report update $(date +%Y-%m-%d)"
+          git push
