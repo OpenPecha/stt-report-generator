@@ -19,6 +19,8 @@ from pathlib import Path
 
 # Third-party imports
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Add project root to path for relative imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -103,6 +105,381 @@ def query_transcription_data(engine):
     except Exception as e:
         logger.error(f"Database query failed: {e}")
         raise
+
+#------------------------------------------------------------------------------
+# Visualization Functions
+#------------------------------------------------------------------------------
+
+def generate_visualizations(summary_df, output_dir=OUTPUT_DIR):
+    """Generate bar and pie charts for each audio file
+    
+    Args:
+        summary_df: DataFrame with summarized data by original_id
+        output_dir: Directory to save the visualization files
+    """
+    try:
+        logger.info("Generating visualizations...")
+        
+        # Create a visualizations directory
+        vis_dir = os.path.join(output_dir, "visualizations")
+        os.makedirs(vis_dir, exist_ok=True)
+        
+        # Generate overview charts
+        generate_overview_charts(summary_df, vis_dir)
+        
+        # Generate individual audio file charts for all files
+        # Sort by total duration for better organization
+        all_files = summary_df.sort_values('total_duration_min', ascending=False)
+        
+        for _, row in all_files.iterrows():
+            generate_audio_file_charts(row, vis_dir)
+            
+        logger.info(f"Visualizations saved to {vis_dir}")
+        
+        # Generate HTML index for easy viewing
+        generate_visualization_index(all_files, vis_dir)
+        
+    except Exception as e:
+        logger.error(f"Visualization generation failed: {e}")
+        raise
+
+def generate_overview_charts(summary_df, vis_dir):
+    """Generate overview charts showing all files"""
+    # Handle the overview visualization differently based on number of files
+    file_count = len(summary_df)
+    
+    # For the top files by duration (for the main overview)
+    top_count = min(30, file_count)  # Show at most 30 files in the overview chart
+    plot_df = summary_df.sort_values('total_duration_min', ascending=False).head(top_count)
+    
+    # Create stacked bar chart for top files
+    plt.figure(figsize=(18, 10))  # Wider figure for more files
+    
+    bar_width = 0.8
+    labels = plot_df['original_id']
+    
+    # Create the stacked bars
+    plt.bar(labels, plot_df['submitted_duration_min'], bar_width, 
+            label='Submitted', color='#4CAF50')
+    plt.bar(labels, plot_df['transcribing_duration_min'], bar_width, 
+            bottom=plot_df['submitted_duration_min'], label='Transcribing', color='#2196F3')
+    plt.bar(labels, plot_df['trashed_duration_min'], bar_width,
+            bottom=plot_df['submitted_duration_min'] + plot_df['transcribing_duration_min'], 
+            label='Trashed', color='#F44336')
+    
+    plt.xlabel('Audio File ID')
+    plt.ylabel('Duration (minutes)')
+    plt.title(f'Top {top_count} Audio Files by Transcription Status (Total: {file_count} files)')
+    plt.xticks(rotation=90, ha='center', fontsize=8)  # Vertical labels for better space usage
+    plt.legend()
+    plt.tight_layout()
+    
+    # If we have many files, create additional charts with different groupings
+    if file_count > 30:
+        # Create a second chart showing files by groups (batches of 30)
+        total_batches = (file_count + 29) // 30  # Ceiling division
+        
+        for batch in range(total_batches):
+            if batch == 0:  # Skip first batch as it's already shown in main chart
+                continue
+                
+            start_idx = batch * 30
+            end_idx = min((batch + 1) * 30, file_count)
+            
+            batch_df = summary_df.sort_values('total_duration_min', ascending=False).iloc[start_idx:end_idx]
+            
+            # Skip if no files in this batch (shouldn't happen but just in case)
+            if len(batch_df) == 0:
+                continue
+                
+            plt.figure(figsize=(18, 10))
+            
+            labels = batch_df['original_id']
+            
+            # Create the stacked bars
+            plt.bar(labels, batch_df['submitted_duration_min'], bar_width, 
+                    label='Submitted', color='#4CAF50')
+            plt.bar(labels, batch_df['transcribing_duration_min'], bar_width, 
+                    bottom=batch_df['submitted_duration_min'], label='Transcribing', color='#2196F3')
+            plt.bar(labels, batch_df['trashed_duration_min'], bar_width,
+                    bottom=batch_df['submitted_duration_min'] + batch_df['transcribing_duration_min'], 
+                    label='Trashed', color='#F44336')
+            
+            plt.xlabel('Audio File ID')
+            plt.ylabel('Duration (minutes)')
+            plt.title(f'Audio Files {start_idx+1}-{end_idx} by Transcription Status (Batch {batch+1} of {total_batches})')
+            plt.xticks(rotation=90, ha='center', fontsize=8)  # Vertical labels for better space usage
+            plt.legend()
+            plt.tight_layout()
+            
+            # Save the batch chart
+            batch_file = os.path.join(vis_dir, f'overview_duration_batch_{batch+1}.png')
+            plt.savefig(batch_file)
+            plt.close()
+    
+    # Save the chart
+    overview_file = os.path.join(vis_dir, 'overview_duration.png')
+    plt.savefig(overview_file)
+    plt.close()
+    
+    # Create a pie chart for overall status
+    plt.figure(figsize=(10, 10))
+    
+    # Aggregate data for pie chart
+    total_submitted = summary_df['submitted_duration_min'].sum()
+    total_transcribing = summary_df['transcribing_duration_min'].sum()
+    total_trashed = summary_df['trashed_duration_min'].sum()
+    
+    sizes = [total_submitted, total_transcribing, total_trashed]
+    labels = ['Submitted', 'Transcribing', 'Trashed']
+    colors = ['#4CAF50', '#2196F3', '#F44336']
+    explode = (0.1, 0, 0)  # explode the 1st slice (Submitted)
+    
+    plt.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%',
+            shadow=True, startangle=140)
+    plt.axis('equal')  # Equal aspect ratio ensures the pie chart is circular.
+    plt.title('Overall Transcription Status (by duration)')
+    
+    # Save the chart
+    overview_pie_file = os.path.join(vis_dir, 'overall_status_pie.png')
+    plt.savefig(overview_pie_file)
+    plt.close()
+
+def generate_audio_file_charts(row, vis_dir):
+    """Generate charts for an individual audio file
+    
+    Args:
+        row: Series containing the data for one audio file
+        vis_dir: Directory to save visualization files
+    """
+    original_id = row['original_id']
+    
+    # Create a directory for this file's visualizations
+    file_vis_dir = os.path.join(vis_dir, original_id)
+    os.makedirs(file_vis_dir, exist_ok=True)
+    
+    # Create bar chart comparing counts and durations
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    
+    # Count data
+    categories = ['Submitted', 'Transcribing', 'Trashed']
+    counts = [row['submitted_count'], row['transcribing_count'], row['trashed_count']]
+    colors = ['#4CAF50', '#2196F3', '#F44336']
+    
+    # Duration data
+    durations = [row['submitted_duration_min'], row['transcribing_duration_min'], row['trashed_duration_min']]
+    
+    # Create the bar charts
+    ax1.bar(categories, counts, color=colors)
+    ax1.set_title(f'{original_id} - Segment Counts')
+    ax1.set_ylabel('Number of Segments')
+    
+    ax2.bar(categories, durations, color=colors)
+    ax2.set_title(f'{original_id} - Duration (minutes)')
+    ax2.set_ylabel('Duration (minutes)')
+    
+    # Add count labels on top of the bars
+    for i, v in enumerate(counts):
+        ax1.text(i, v + 0.5, str(v), ha='center')
+        
+    for i, v in enumerate(durations):
+        ax2.text(i, v + 0.5, f'{v:.1f}', ha='center')
+    
+    plt.tight_layout()
+    
+    # Save the chart
+    bar_file = os.path.join(file_vis_dir, f'{original_id}_bars.png')
+    plt.savefig(bar_file)
+    plt.close()
+    
+    # Create pie charts for counts and durations
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+    
+    # Only include non-zero values in pie charts
+    count_labels = []
+    count_sizes = []
+    count_colors = []
+    
+    for i, (category, count) in enumerate(zip(categories, counts)):
+        if count > 0:
+            count_labels.append(category)
+            count_sizes.append(count)
+            count_colors.append(colors[i])
+    
+    dur_labels = []
+    dur_sizes = []
+    dur_colors = []
+    
+    for i, (category, duration) in enumerate(zip(categories, durations)):
+        if duration > 0:
+            dur_labels.append(category)
+            dur_sizes.append(duration)
+            dur_colors.append(colors[i])
+    
+    # Create the pie charts
+    if sum(count_sizes) > 0:
+        ax1.pie(count_sizes, labels=count_labels, colors=count_colors, autopct='%1.1f%%',
+                shadow=True, startangle=90)
+        ax1.set_title(f'{original_id} - Segment Counts')
+    else:
+        ax1.text(0.5, 0.5, 'No data', ha='center', va='center')
+        
+    if sum(dur_sizes) > 0:
+        ax2.pie(dur_sizes, labels=dur_labels, colors=dur_colors, autopct='%1.1f%%',
+                shadow=True, startangle=90)
+        ax2.set_title(f'{original_id} - Duration Distribution')
+    else:
+        ax2.text(0.5, 0.5, 'No data', ha='center', va='center')
+    
+    plt.tight_layout()
+    
+    # Save the chart
+    pie_file = os.path.join(file_vis_dir, f'{original_id}_pies.png')
+    plt.savefig(pie_file)
+    plt.close()
+    
+    return [bar_file, pie_file]
+
+def generate_visualization_index(all_files, vis_dir):
+    """Generate an HTML index page to easily view all visualizations
+    
+    Args:
+        all_files: DataFrame containing all files that were visualized
+        vis_dir: Directory where visualizations are stored
+    """
+    # Using double curly braces to escape them in the CSS part
+    html_content = """<!DOCTYPE html>
+<html>
+<head>
+    <title>STT Transcription Visualizations</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        h1, h2, h3 {{ color: #333; }}
+        .overview {{ margin-bottom: 30px; }}
+        .batch-charts {{ margin-bottom: 30px; }}
+        .file-section {{ margin-bottom: 40px; border-bottom: 1px solid #ccc; padding-bottom: 20px; }}
+        img {{ max-width: 100%; margin: 10px 0; box-shadow: 0 0 5px rgba(0,0,0,0.2); }}
+        .timestamp {{ color: #666; font-size: 0.8em; }}
+        .nav-links {{ margin: 20px 0; }}
+        .nav-links a {{ margin-right: 15px; padding: 5px 10px; background-color: #f0f0f0; text-decoration: none; color: #333; border-radius: 3px; }}
+        .nav-links a:hover {{ background-color: #ddd; }}
+    </style>
+</head>
+<body>
+    <h1>STT Transcription Visualizations</h1>
+    <p class="timestamp">Generated on: {timestamp}</p>
+    
+    <div class="nav-links">
+        <a href="#overview">Overview Charts</a>
+        {batch_nav}
+        <a href="#individual">Individual Files</a>
+    </div>
+    
+    <div id="overview" class="overview">
+        <h2>Overview Charts</h2>
+        <img src="overview_duration.png" alt="Overall Audio Duration by Status">
+        <img src="overall_status_pie.png" alt="Overall Status Distribution">
+    </div>
+    
+    {batch_sections}
+    
+    <h2 id="individual">Individual Audio Files</h2>
+    {file_sections}
+</body>
+</html>
+"""
+    file_count = len(all_files)
+    batch_nav = ""
+    batch_sections = ""
+    
+    # Generate batch navigation and sections if we have multiple batches
+    if file_count > 30:
+        total_batches = (file_count + 29) // 30  # Ceiling division
+        
+        # Create batch navigation links
+        for batch in range(1, total_batches):
+            batch_nav += f'<a href="#batch{batch+1}">Batch {batch+1}</a>'
+        
+        # Create batch sections
+        for batch in range(1, total_batches):
+            batch_sections += f"""
+    <div id="batch{batch+1}" class="batch-charts">
+        <h2>Batch {batch+1} Charts (Files {batch*30+1}-{min((batch+1)*30, file_count)})</h2>
+        <img src="overview_duration_batch_{batch}.png" alt="Batch {batch} Audio Duration by Status">
+    </div>
+"""
+    
+    # Create file index for better navigation
+    file_index = generate_file_index(all_files)
+    
+    # Generate individual file sections
+    file_sections = ""
+    for _, row in all_files.iterrows():
+        original_id = row['original_id']
+        file_sections += f"""
+    <div id="file-{original_id}" class="file-section">
+        <h3>{original_id}</h3>
+        <p>Total Duration: {row['total_duration_min']:.2f} minutes, Total Segments: {row['total_segments']}</p>
+        <img src="{original_id}/{original_id}_bars.png" alt="{original_id} Bar Charts">
+        <img src="{original_id}/{original_id}_pies.png" alt="{original_id} Pie Charts">
+    </div>
+"""
+    
+    # Fill in the template
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    html_content = html_content.format(
+        timestamp=timestamp, 
+        batch_nav=batch_nav,
+        batch_sections=batch_sections,
+        file_sections=file_index + file_sections)
+    
+    # Save the HTML file
+    index_file = os.path.join(vis_dir, 'index.html')
+    with open(index_file, 'w') as f:
+        f.write(html_content)
+    
+    return index_file
+
+def generate_file_index(all_files):
+    """Generate an HTML file index for easier navigation
+    
+    Args:
+        all_files: DataFrame containing all files that were visualized
+        
+    Returns:
+        HTML string containing the file index
+    """
+    # Sort files by total duration
+    sorted_files = all_files.sort_values('total_duration_min', ascending=False)
+    
+    # Create an alphabetical index in columns
+    file_count = len(sorted_files)
+    
+    # Create alphabetical index
+    index_html = """<div class="file-index">
+    <h3>Quick File Navigation</h3>
+    <p>Click on a file ID to jump to its visualizations:</p>
+    <div style="column-count: 3; column-gap: 20px;">
+"""
+    
+    # Group files by first character for easier navigation
+    first_chars = sorted(set(file_id[0].upper() for file_id in sorted_files['original_id']))
+    
+    for char in sorted(first_chars):
+        char_files = [file_id for file_id in sorted_files['original_id'] if file_id[0].upper() == char]
+        if char_files:
+            index_html += f"<div><strong>{char}</strong><ul>"
+            for file_id in sorted(char_files):
+                duration = sorted_files.loc[sorted_files['original_id'] == file_id, 'total_duration_min'].iloc[0]
+                index_html += f"<li><a href=\"#file-{file_id}\">{file_id}</a> ({duration:.1f} min)</li>"
+            index_html += "</ul></div>"
+    
+    index_html += """    </div>
+</div>
+<hr>
+"""
+    
+    return index_html
 
 #------------------------------------------------------------------------------
 # Report Generation Functions
@@ -329,6 +706,9 @@ def main():
         
         # File operations
         save_outputs(df, summary)
+        
+        # Generate visualizations
+        generate_visualizations(original_summary, OUTPUT_DIR)
         
         logger.info("Report generation completed successfully")
     except Exception as e:
