@@ -1,6 +1,6 @@
 # STT Transcription Report
 
-## Summary for 2025-07-03
+## Summary for 2025-07-04
 
 - **Date Range**: 2025-06-13 to 2025-07-01
 - **Total Transcribed Files**: 38
@@ -11,9 +11,9 @@
 
 | Status | Count | Duration (hours) |
 |--------|-------|------------------|
-| Transcribing | 14343 | 13.61 |
-| Submitted | 1889 | 4.05 |
-| Trashed | 199 | 0.81 |
+| Transcribing | 14105 | 13.16 |
+| Submitted | 2112 | 4.48 |
+| Trashed | 214 | 0.84 |
 
 ## Weekly Progress
 
@@ -27,7 +27,7 @@
 
 | Original ID | Total Segments | Total Duration (min) | Submitted Count | Submitted Duration (min) | Transcribing Count | Transcribing Duration (min) | Trashed Count | Trashed Duration (min) |
 |-------------|---------------|----------------------|----------------|--------------------------|-------------------|----------------------------|--------------|--------------------------|
-| STT_GR_0001 | 54 | 7.01 | 3 | 0.60 | 51 | 6.41 | 0 | 0.00 |
+| STT_GR_0001 | 54 | 7.01 | 7 | 1.05 | 47 | 5.96 | 0 | 0.00 |
 | STT_GR_0002 | 436 | 36.84 | 109 | 15.76 | 325 | 20.64 | 2 | 0.44 |
 | STT_GR_0003 | 423 | 46.37 | 157 | 22.37 | 263 | 23.75 | 3 | 0.25 |
 | STT_GR_0004 | 309 | 22.63 | 68 | 8.63 | 235 | 11.76 | 6 | 2.24 |
