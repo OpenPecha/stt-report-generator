@@ -2,9 +2,9 @@ name: Weekly STT Report Generation
 
 on:
   schedule:
-    # Temporary schedule for testing - runs at 6:40 AM UTC (current time + 5 minutes)
+    # Temporary schedule for testing - runs at 6:25 AM UTC (within 3 minutes)
     # Change this back to '0 9 * * 1' after testing
-    - cron: '40 6 4 7 *'  
+    - cron: '25 6 4 7 *'  
   workflow_dispatch:      # Allow manual trigger from GitHub
 
 jobs:
