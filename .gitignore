@@ -2,7 +2,6 @@ venv/
 util/.env
 
 # Ignore visualization directories but allow CSV and MD files
-reports/visualizations/
 
 # Ignore large data files over 100MB (GitHub has a file size limit)
 # If needed, these can be tracked with Git LFS
