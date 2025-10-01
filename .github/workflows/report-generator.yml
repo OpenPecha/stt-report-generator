@@ -1,8 +1,8 @@
-name: Weekly STT Report Generation
+name: Daily STT Report Generation
 
 on:
   schedule:
-    - cron: '0 9 * * 1'  # Every Monday at 9AM UTC
+    - cron: '0 17 * * *'  # Every day at 5PM UTC
   workflow_dispatch:      # Allow manual trigger from GitHub
 
 jobs:
@@ -40,5 +40,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add reports/
-          git diff --staged --quiet || git commit -m "📊 Weekly STT report update $(date +%Y-%m-%d)"
+          git diff --staged --quiet || git commit -m "📊 Daily STT report update $(date +%Y-%m-%d)"
           git push

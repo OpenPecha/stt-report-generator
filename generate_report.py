@@ -89,7 +89,7 @@ def query_transcription_data(engine):
             SELECT 
                 *
             FROM "Task" t
-            WHERE t.group_id in (32, 33)
+            WHERE t.group_id in (32, 33, 34, 35)
         """
         
         df = pd.read_sql(query, engine)
@@ -160,12 +160,16 @@ def generate_overview_charts(summary_df, vis_dir):
     
     # Create the stacked bars
     plt.bar(labels, plot_df['submitted_duration_min'], bar_width, 
-            label='Submitted', color='#4CAF50')
+            label='Submitted', color='#2196F3')  # Blue
+    plt.bar(labels, plot_df['accepted_duration_min'], bar_width, 
+            bottom=plot_df['submitted_duration_min'], 
+            label='Accepted', color='#4CAF50')  # Green
     plt.bar(labels, plot_df['transcribing_duration_min'], bar_width, 
-            bottom=plot_df['submitted_duration_min'], label='Transcribing', color='#2196F3')
+            bottom=plot_df['submitted_duration_min'] + plot_df['accepted_duration_min'], 
+            label='Transcribing', color='#FFEB3B')  # Yellow
     plt.bar(labels, plot_df['trashed_duration_min'], bar_width,
-            bottom=plot_df['submitted_duration_min'] + plot_df['transcribing_duration_min'], 
-            label='Trashed', color='#F44336')
+            bottom=plot_df['submitted_duration_min'] + plot_df['accepted_duration_min'] + plot_df['transcribing_duration_min'], 
+            label='Trashed', color='#F44336')  # Red
     
     plt.xlabel('Audio File ID')
     plt.ylabel('Duration (minutes)')
@@ -198,12 +202,16 @@ def generate_overview_charts(summary_df, vis_dir):
             
             # Create the stacked bars
             plt.bar(labels, batch_df['submitted_duration_min'], bar_width, 
-                    label='Submitted', color='#4CAF50')
+                    label='Submitted', color='#2196F3')  # Blue
+            plt.bar(labels, batch_df['accepted_duration_min'], bar_width, 
+                    bottom=batch_df['submitted_duration_min'], 
+                    label='Accepted', color='#4CAF50')  # Green
             plt.bar(labels, batch_df['transcribing_duration_min'], bar_width, 
-                    bottom=batch_df['submitted_duration_min'], label='Transcribing', color='#2196F3')
+                    bottom=batch_df['submitted_duration_min'] + batch_df['accepted_duration_min'], 
+                    label='Transcribing', color='#FFEB3B')  # Yellow
             plt.bar(labels, batch_df['trashed_duration_min'], bar_width,
-                    bottom=batch_df['submitted_duration_min'] + batch_df['transcribing_duration_min'], 
-                    label='Trashed', color='#F44336')
+                    bottom=batch_df['submitted_duration_min'] + batch_df['accepted_duration_min'] + batch_df['transcribing_duration_min'], 
+                    label='Trashed', color='#F44336')  # Red
             
             plt.xlabel('Audio File ID')
             plt.ylabel('Duration (minutes)')
@@ -223,26 +231,64 @@ def generate_overview_charts(summary_df, vis_dir):
     plt.close()
     
     # Create a pie chart for overall status
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(11, 11))  # Slightly larger to accommodate more text
     
     # Aggregate data for pie chart
     total_submitted = summary_df['submitted_duration_min'].sum()
+    total_accepted = summary_df['accepted_duration_min'].sum()
     total_transcribing = summary_df['transcribing_duration_min'].sum()
     total_trashed = summary_df['trashed_duration_min'].sum()
     
-    sizes = [total_submitted, total_transcribing, total_trashed]
-    labels = ['Submitted', 'Transcribing', 'Trashed']
-    colors = ['#4CAF50', '#2196F3', '#F44336']
-    explode = (0.1, 0, 0)  # explode the 1st slice (Submitted)
+    sizes = [total_submitted, total_accepted, total_transcribing, total_trashed]
+    labels = ['Submitted', 'Accepted', 'Transcribing', 'Trashed']
+    colors = ['#2196F3', '#4CAF50', '#FFEB3B', '#F44336']  # Blue, Green, Yellow, Red
+    explode = (0.1, 0.05, 0, 0)  # explode the 1st and 2nd slices
     
-    plt.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%',
-            shadow=True, startangle=140)
+    # Create custom autopct function to show both percentage and minutes
+    def make_autopct(values):
+        def my_autopct(pct):
+            total = sum(values)
+            val = pct * total / 100
+            return '{p:.1f}%\n({v:.1f} min)'.format(p=pct, v=val)
+        return my_autopct
+    
+    plt.pie(sizes, explode=explode, labels=labels, colors=colors, 
+            autopct=make_autopct(sizes),
+            shadow=True, startangle=140, textprops={'fontsize': 9})
     plt.axis('equal')  # Equal aspect ratio ensures the pie chart is circular.
-    plt.title('Overall Transcription Status (by duration)')
+    plt.title('Overall Transcription Status (by duration)', pad=30, fontsize=14)  # More padding and larger font
     
     # Save the chart
     overview_pie_file = os.path.join(vis_dir, 'overall_status_pie.png')
     plt.savefig(overview_pie_file)
+    plt.close()
+    
+    # Create a horizontal bar chart for overall status
+    plt.figure(figsize=(12, 6))
+    
+    # Prepare data for horizontal bar chart
+    status_labels = ['Submitted', 'Accepted', 'Transcribing', 'Trashed']
+    status_durations = [total_submitted, total_accepted, total_transcribing, total_trashed]
+    y_pos = range(len(status_labels))
+    
+    # Create horizontal bar chart
+    bars = plt.barh(y_pos, status_durations, align='center', color=colors)
+    plt.yticks(y_pos, status_labels)
+    plt.xlabel('Duration (minutes)')
+    plt.title('Overall Transcription Status by Duration', pad=20, fontsize=14)
+    
+    # Add labels on the bars
+    for i, bar in enumerate(bars):
+        width = bar.get_width()
+        plt.text(width + 1, bar.get_y() + bar.get_height()/2, 
+                 f'{status_durations[i]:.1f} min ({status_durations[i]/sum(status_durations)*100:.1f}%)', 
+                 ha='left', va='center')
+    
+    plt.tight_layout()
+    
+    # Save the chart
+    overview_bar_file = os.path.join(vis_dir, 'overall_status_bar.png')
+    plt.savefig(overview_bar_file)
     plt.close()
 
 def generate_audio_file_charts(row, vis_dir):
@@ -262,12 +308,12 @@ def generate_audio_file_charts(row, vis_dir):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     
     # Count data
-    categories = ['Submitted', 'Transcribing', 'Trashed']
-    counts = [row['submitted_count'], row['transcribing_count'], row['trashed_count']]
-    colors = ['#4CAF50', '#2196F3', '#F44336']
+    categories = ['Submitted', 'Accepted', 'Transcribing', 'Trashed']
+    counts = [row['submitted_count'], row['accepted_count'], row['transcribing_count'], row['trashed_count']]
+    colors = ['#2196F3', '#4CAF50', '#FFEB3B', '#F44336']  # Blue, Green, Yellow, Red
     
     # Duration data
-    durations = [row['submitted_duration_min'], row['transcribing_duration_min'], row['trashed_duration_min']]
+    durations = [row['submitted_duration_min'], row['accepted_duration_min'], row['transcribing_duration_min'], row['trashed_duration_min']]
     
     # Create the bar charts
     ax1.bar(categories, counts, color=colors)
@@ -292,8 +338,9 @@ def generate_audio_file_charts(row, vis_dir):
     plt.savefig(bar_file)
     plt.close()
     
-    # Create pie charts for counts and durations
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+    # Create a second chart showing total status by counts and duration
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))  # Wider figure for more text
+    fig.subplots_adjust(wspace=0.3, bottom=0.15, top=0.85)  # Add more space between and around subplots
     
     # Only include non-zero values in pie charts
     count_labels = []
@@ -318,16 +365,42 @@ def generate_audio_file_charts(row, vis_dir):
     
     # Create the pie charts
     if sum(count_sizes) > 0:
-        ax1.pie(count_sizes, labels=count_labels, colors=count_colors, autopct='%1.1f%%',
-                shadow=True, startangle=90)
-        ax1.set_title(f'{original_id} - Segment Counts')
+        # Increase figure height if needed for better label fitting
+        if len(count_sizes) < 2:
+            fig.set_figheight(9)  # Make figure taller for better label placement
+            
+        # Create custom autopct function for counts
+        def make_count_autopct(values):
+            def my_autopct(pct):
+                total = sum(values)
+                val = int(round(pct * total / 100.0))
+                return '{p:.1f}%\n({v:d})'.format(p=pct, v=val)
+            return my_autopct
+            
+        ax1.pie(count_sizes, labels=count_labels, colors=count_colors, 
+                autopct=make_count_autopct(count_sizes),
+                shadow=True, startangle=90, labeldistance=1.1, textprops={'fontsize': 8})  # Increase label distance
+        ax1.set_title(f'{original_id} - Segment Counts', fontsize=10, pad=20)  # More padding
     else:
         ax1.text(0.5, 0.5, 'No data', ha='center', va='center')
         
     if sum(dur_sizes) > 0:
-        ax2.pie(dur_sizes, labels=dur_labels, colors=dur_colors, autopct='%1.1f%%',
-                shadow=True, startangle=90)
-        ax2.set_title(f'{original_id} - Duration Distribution')
+        # Increase figure height if needed for better label fitting
+        if len(dur_sizes) < 2 and fig.get_figheight() < 9:
+            fig.set_figheight(9)  # Make figure taller for better label placement
+            
+        # Create custom autopct function for durations
+        def make_dur_autopct(values):
+            def my_autopct(pct):
+                total = sum(values)
+                val = pct * total / 100
+                return '{p:.1f}%\n({v:.1f} min)'.format(p=pct, v=val)
+            return my_autopct
+            
+        ax2.pie(dur_sizes, labels=dur_labels, colors=dur_colors, 
+                autopct=make_dur_autopct(dur_sizes),
+                shadow=True, startangle=90, labeldistance=1.1, textprops={'fontsize': 8})  # Increase label distance
+        ax2.set_title(f'{original_id} - Duration Distribution', fontsize=10, pad=20)  # More padding
     else:
         ax2.text(0.5, 0.5, 'No data', ha='center', va='center')
     
@@ -378,7 +451,8 @@ def generate_visualization_index(all_files, vis_dir):
     <div id="overview" class="overview">
         <h2>Overview Charts</h2>
         <img src="overview_duration.png" alt="Overall Audio Duration by Status">
-        <img src="overall_status_pie.png" alt="Overall Status Distribution">
+        <img src="overall_status_pie.png" alt="Overall Status Distribution (Pie Chart)">
+        <img src="overall_status_bar.png" alt="Overall Status Distribution (Bar Chart)">
     </div>
     
     {batch_sections}
@@ -504,12 +578,17 @@ def summarize_by_original_id(df):
     summary['transcribing_duration_min'] = duration_df.get('transcribing', 0).round(2)
     summary['submitted_count'] = count_df.get('submitted', 0)
     summary['submitted_duration_min'] = duration_df.get('submitted', 0).round(2)
+    summary['accepted_count'] = count_df.get('accepted', 0)
+    summary['accepted_duration_min'] = duration_df.get('accepted', 0).round(2)
     summary['trashed_count'] = count_df.get('trashed', 0)
     summary['trashed_duration_min'] = duration_df.get('trashed', 0).round(2)
 
-    summary['total_segments'] = summary[['transcribing_count', 'submitted_count', 'trashed_count']].sum(axis=1)
+    summary['total_segments'] = summary[[
+        'transcribing_count', 'submitted_count', 'accepted_count', 'trashed_count'
+    ]].sum(axis=1)
     summary['total_duration_min'] = summary[[
-        'transcribing_duration_min', 'submitted_duration_min', 'trashed_duration_min'
+        'transcribing_duration_min', 'submitted_duration_min', 
+        'accepted_duration_min', 'trashed_duration_min'
     ]].sum(axis=1).round(2)
 
     return summary.reset_index().sort_values('original_id')
@@ -560,12 +639,14 @@ def generate_summary_report(df, original_summary):
             state_counts = df['state'].value_counts()
             stats['transcribing_count'] = state_counts.get('transcribing', 0)
             stats['submitted_count'] = state_counts.get('submitted', 0)
+            stats['accepted_count'] = state_counts.get('accepted', 0)
             stats['trashed_count'] = state_counts.get('trashed', 0)
             
             # Durations by state
             state_durations = df.groupby('state')['audio_duration'].sum()
             stats['transcribing_duration'] = state_durations.get('transcribing', 0) / 3600  # convert to hours
             stats['submitted_duration'] = state_durations.get('submitted', 0) / 3600  # convert to hours
+            stats['accepted_duration'] = state_durations.get('accepted', 0) / 3600  # convert to hours
             stats['trashed_duration'] = state_durations.get('trashed', 0) / 3600  # convert to hours
         
         summary = f"""# STT Transcription Report
@@ -583,6 +664,7 @@ def generate_summary_report(df, original_summary):
 |--------|-------|------------------|
 | Transcribing | {stats.get('transcribing_count', 0)} | {stats.get('transcribing_duration', 0):.2f} |
 | Submitted | {stats.get('submitted_count', 0)} | {stats.get('submitted_duration', 0):.2f} |
+| Accepted | {stats.get('accepted_count', 0)} | {stats.get('accepted_duration', 0):.2f} |
 | Trashed | {stats.get('trashed_count', 0)} | {stats.get('trashed_duration', 0):.2f} |
 
 ## Weekly Progress
@@ -597,13 +679,14 @@ def generate_summary_report(df, original_summary):
         # Add original ID summary table if available
         if not original_summary.empty:
             summary += "\n## Original ID Breakdown\n\n"
-            summary += "| Original ID | Total Segments | Total Duration (min) | Submitted Count | Submitted Duration (min) | Transcribing Count | Transcribing Duration (min) | Trashed Count | Trashed Duration (min) |\n"
-            summary += "|-------------|---------------|----------------------|----------------|--------------------------|-------------------|----------------------------|--------------|--------------------------|\n"
+            summary += "| Original ID | Total Segments | Total Duration (min) | Submitted Count | Submitted Duration (min) | Accepted Count | Accepted Duration (min) | Transcribing Count | Transcribing Duration (min) | Trashed Count | Trashed Duration (min) |\n"
+            summary += "|-------------|---------------|----------------------|----------------|--------------------------|----------------|--------------------------|-------------------|----------------------------|--------------|--------------------------|\n"
             
             # Add top 10 rows to keep the report concise
             for _, row in original_summary.head(10).iterrows():
                 summary += f"| {row['original_id']} | {row['total_segments']} | {row['total_duration_min']} | "
                 summary += f"{row['submitted_count']} | {row['submitted_duration_min']:.2f} | "
+                summary += f"{row['accepted_count']} | {row['accepted_duration_min']:.2f} | "
                 summary += f"{row['transcribing_count']} | {row['transcribing_duration_min']:.2f} | "
                 summary += f"{row['trashed_count']} | {row['trashed_duration_min']:.2f} |\n"
             
