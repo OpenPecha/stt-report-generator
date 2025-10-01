@@ -7,7 +7,7 @@
 </h1>
 
 ## Speech-to-Text Transcription Report Generator
-Automatically generate weekly reports from your STT transcription database using GitHub Actions
+Automatically generate daily reports from your STT transcription database using GitHub Actions
 
 ## Owner(s)
 
@@ -31,7 +31,16 @@ Automatically generate weekly reports from your STT transcription database using
 
 ## Project description
 
-With STT Report Generator, you can automatically generate weekly reports from your speech-to-text transcription database. This tool connects to your database, extracts key metrics about your transcription tasks, and generates both CSV data files and markdown summary reports. The entire process is automated using GitHub Actions, which can be scheduled to run on a regular basis.
+With STT Report Generator, you can automatically generate daily reports from your speech-to-text transcription database. This tool connects to your database, extracts key metrics about your transcription tasks, and generates both CSV data files and markdown summary reports. The entire process is automated using GitHub Actions, which can be scheduled to run on a regular basis.
+
+### Transcription States Explained
+
+The reports track audio segments in four possible states:
+
+- **Transcribing**: Audio segments that are yet to be transcribed
+- **Submitted**: Audio segments that have been transcribed by a person
+- **Accepted**: Audio segments where the transcription has been reviewed and approved by another person
+- **Trashed**: Audio segments that are not usable (poor audio quality, etc.)
 
 
 ## Who this project is for
@@ -68,10 +77,10 @@ Get started with STT Report Generator by setting up the GitHub Actions workflow 
 ### Configure Report Schedule
 1. Adjust the schedule in `.github/workflows/report-generator.yml`
    
-   The default setting runs every Monday at 9:00 AM UTC:
+   The default setting runs daily at 5:00 PM UTC:
    ```yaml
    schedule:
-     - cron: '0 9 * * 1'  # Every Monday at 9AM UTC
+     - cron: '0 17 * * *'  # Every day at 5PM UTC
    ```
    
    You can modify this cron expression to change the schedule.
@@ -81,7 +90,7 @@ Get started with STT Report Generator by setting up the GitHub Actions workflow 
    
    a. Go to the Actions tab in your repository
    
-   b. Select the "Weekly STT Report Generation" workflow
+   b. Select the "Daily STT Report Generation" workflow
    
    c. Click "Run workflow"
 
