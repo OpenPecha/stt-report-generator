@@ -726,7 +726,7 @@ def save_outputs(df, summary, output_dir=OUTPUT_DIR):
         
         # Filter only relevant columns for CSV output as requested
         relevant_columns = [
-            'file_name', 'state', 'inference_transcript', 'transcript', 'url',
+            'file_name', 'state', 'inference_transcript', 'transcript', 'reviewed_transcript', 'url',
             'created_at', 'submitted_at', 'reviewed_at', 'audio_duration', 'original_id'
         ]
         
