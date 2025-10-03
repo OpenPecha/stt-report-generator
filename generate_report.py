@@ -90,6 +90,9 @@ def query_transcription_data(engine):
                 *
             FROM "Task" t
             WHERE t.group_id in (32, 33, 34, 35)
+            and t.created_at >= '2025-06-19'
+
+
         """
         
         df = pd.read_sql(query, engine)
