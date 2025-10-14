@@ -12,8 +12,8 @@
 | Status | Count | Duration (hours) |
 |--------|-------|------------------|
 | Transcribing | 1 | 0.00 |
-| Submitted | 20592 | 22.58 |
-| Accepted | 2246 | 2.47 |
+| Submitted | 20491 | 22.52 |
+| Accepted | 2347 | 2.53 |
 | Trashed | 936 | 0.64 |
 
 ## Weekly Progress
