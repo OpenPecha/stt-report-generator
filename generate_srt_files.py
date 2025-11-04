@@ -109,20 +109,40 @@ def generate_srt_files(breakdown_df=None, transcription_df=None,
         # Load data from dataframes or CSV files
         if breakdown_df is None and breakdown_csv:
             logger.info(f"Reading breakdown data from {breakdown_csv}")
+            if not os.path.exists(breakdown_csv):
+                raise FileNotFoundError(f"Breakdown CSV file not found: {breakdown_csv}")
             breakdown_df = pd.read_csv(breakdown_csv)
             
         if transcription_df is None and transcription_csv:
             logger.info(f"Reading transcription data from {transcription_csv}")
+            if not os.path.exists(transcription_csv):
+                raise FileNotFoundError(f"Transcription CSV file not found: {transcription_csv}")
             transcription_df = pd.read_csv(transcription_csv)
             
         if breakdown_df is None or transcription_df is None:
             raise ValueError("Must provide either DataFrames or CSV files for both breakdown and transcription data")
         
+        # Validate required columns exist
+        required_breakdown_cols = ['original_id', 'transcribing_count', 'submitted_count']
+        missing_breakdown_cols = [col for col in required_breakdown_cols if col not in breakdown_df.columns]
+        if missing_breakdown_cols:
+            raise ValueError(f"Breakdown data missing required columns: {missing_breakdown_cols}")
+            
+        required_transcription_cols = ['original_id', 'file_name', 'reviewed_transcript']
+        missing_transcription_cols = [col for col in required_transcription_cols if col not in transcription_df.columns]
+        if missing_transcription_cols:
+            raise ValueError(f"Transcription data missing required columns: {missing_transcription_cols}")
+        
         # Filter for original_ids with transcribing_count = 0 AND submitted_count = 0
+        # Also ensure we have some eligible IDs to process
         eligible_ids = breakdown_df[(breakdown_df['transcribing_count'] == 0) & 
                                   (breakdown_df['submitted_count'] == 0)]['original_id'].tolist()
         
         logger.info(f"Found {len(eligible_ids)} original IDs with transcribing_count = 0 and submitted_count = 0")
+        
+        if not eligible_ids:
+            logger.info("No eligible original IDs found for SRT generation")
+            return 0
     
         # Group by original_id
         grouped = transcription_df.groupby('original_id')
@@ -181,6 +201,11 @@ def generate_srt_files(breakdown_df=None, transcription_df=None,
                     seen_segments = set()
                     for _, row in sorted_data.iterrows():
                         try:
+                            # Check if required columns exist
+                            if 'segment_num' not in row or 'file_name' not in row:
+                                logger.warning(f"Skipping row missing required columns: {row}")
+                                continue
+                                
                             # Use only segment number to identify duplicates
                             segment_key = row['segment_num']
                             
@@ -197,12 +222,18 @@ def generate_srt_files(breakdown_df=None, transcription_df=None,
                             start_time = milliseconds_to_srt_time(start_ms)
                             end_time = milliseconds_to_srt_time(end_ms)
                             
+                            # Check if reviewed_transcript exists and is not NaN
+                            transcript = row.get('reviewed_transcript', '')
+                            if pd.isna(transcript) or not transcript:
+                                logger.warning(f"No reviewed transcript for {row['file_name']}, skipping")
+                                continue
+                            
                             # Create the entry
-                            entry = f"{entry_counter}\n{start_time} --> {end_time}\n{row['reviewed_transcript']}\n\n"
+                            entry = f"{entry_counter}\n{start_time} --> {end_time}\n{transcript}\n\n"
                             entries.append(entry)
                             entry_counter += 1
                         except Exception as e:
-                            logger.error(f"Error processing {row['file_name']}: {str(e)}")
+                            logger.error(f"Error processing {row.get('file_name', 'unknown file')}: {str(e)}")
                     
                     # Write all entries to the file at once
                     if entries:
@@ -239,6 +270,17 @@ def main():
         breakdown_csv = os.path.join(OUTPUT_DIR, "original_id_breakdown_latest.csv")
         transcription_csv = os.path.join(OUTPUT_DIR, "transcription_data_latest.csv")
         srt_output_dir = os.path.join(OUTPUT_DIR, SRT_OUTPUT_DIR)
+        
+        # Check if required files exist
+        if not os.path.exists(breakdown_csv):
+            logger.warning(f"Breakdown file not found: {breakdown_csv}")
+            logger.info("SRT generation skipped - no breakdown data available")
+            return
+            
+        if not os.path.exists(transcription_csv):
+            logger.warning(f"Transcription file not found: {transcription_csv}")
+            logger.info("SRT generation skipped - no transcription data available")
+            return
         
         # Generate SRT files
         generate_srt_files(

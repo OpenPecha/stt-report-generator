@@ -1,6 +1,6 @@
 # STT Transcription Report
 
-## Summary for 2025-10-16
+## Summary for 2025-11-04
 
 - **Date Range**: 2025-06-20 to 2025-09-03
 - **Total Transcribed Files**: 139
@@ -11,9 +11,9 @@
 
 | Status | Count | Duration (hours) |
 |--------|-------|------------------|
-| Transcribing | 6 | 0.01 |
-| Submitted | 20368 | 22.31 |
-| Accepted | 2465 | 2.73 |
+| Transcribing | 58 | 0.06 |
+| Submitted | 15904 | 18.87 |
+| Accepted | 6877 | 6.12 |
 | Trashed | 936 | 0.64 |
 
 ## Weekly Progress

@@ -89,7 +89,7 @@ def query_transcription_data(engine):
             SELECT 
                 *
             FROM "Task" t
-            WHERE t.group_id in (32, 33, 34, 35)
+            WHERE t.group_id >= 32
             and t.created_at >= '2025-06-19'
 
 
@@ -161,18 +161,28 @@ def generate_overview_charts(summary_df, vis_dir):
     bar_width = 0.8
     labels = plot_df['original_id']
     
-    # Create the stacked bars
-    plt.bar(labels, plot_df['submitted_duration_min'], bar_width, 
-            label='Submitted', color='#2196F3')  # Blue
-    plt.bar(labels, plot_df['accepted_duration_min'], bar_width, 
-            bottom=plot_df['submitted_duration_min'], 
-            label='Accepted', color='#4CAF50')  # Green
-    plt.bar(labels, plot_df['transcribing_duration_min'], bar_width, 
-            bottom=plot_df['submitted_duration_min'] + plot_df['accepted_duration_min'], 
-            label='Transcribing', color='#FFEB3B')  # Yellow
-    plt.bar(labels, plot_df['trashed_duration_min'], bar_width,
-            bottom=plot_df['submitted_duration_min'] + plot_df['accepted_duration_min'] + plot_df['transcribing_duration_min'], 
-            label='Trashed', color='#F44336')  # Red
+    # Create the stacked bars with error handling for missing states
+    try:
+        plt.bar(labels, plot_df['submitted_duration_min'], bar_width, 
+                label='Submitted', color='#2196F3')  # Blue
+        plt.bar(labels, plot_df['accepted_duration_min'], bar_width, 
+                bottom=plot_df['submitted_duration_min'], 
+                label='Accepted', color='#4CAF50')  # Green
+        plt.bar(labels, plot_df['transcribing_duration_min'], bar_width, 
+                bottom=plot_df['submitted_duration_min'] + plot_df['accepted_duration_min'], 
+                label='Transcribing', color='#FFEB3B')  # Yellow
+        plt.bar(labels, plot_df['trashed_duration_min'], bar_width,
+                bottom=plot_df['submitted_duration_min'] + plot_df['accepted_duration_min'] + plot_df['transcribing_duration_min'], 
+                label='Trashed', color='#F44336')  # Red
+    except KeyError as e:
+        logger.error(f"Missing required state column in data: {e}")
+        # Create a simple bar chart with available data
+        available_cols = [col for col in plot_df.columns if '_duration_min' in col]
+        for i, col in enumerate(available_cols):
+            color_map = {'submitted_duration_min': '#2196F3', 'accepted_duration_min': '#4CAF50', 
+                        'transcribing_duration_min': '#FFEB3B', 'trashed_duration_min': '#F44336'}
+            label = col.replace('_duration_min', '').title()
+            plt.bar(labels, plot_df[col], bar_width, label=label, color=color_map.get(col, '#999999'))
     
     plt.xlabel('Audio File ID')
     plt.ylabel('Duration (minutes)')
@@ -236,11 +246,19 @@ def generate_overview_charts(summary_df, vis_dir):
     # Create a pie chart for overall status
     plt.figure(figsize=(11, 11))  # Slightly larger to accommodate more text
     
-    # Aggregate data for pie chart
-    total_submitted = summary_df['submitted_duration_min'].sum()
-    total_accepted = summary_df['accepted_duration_min'].sum()
-    total_transcribing = summary_df['transcribing_duration_min'].sum()
-    total_trashed = summary_df['trashed_duration_min'].sum()
+    # Aggregate data for pie chart with error handling
+    try:
+        total_submitted = summary_df['submitted_duration_min'].sum()
+        total_accepted = summary_df['accepted_duration_min'].sum()
+        total_transcribing = summary_df['transcribing_duration_min'].sum()
+        total_trashed = summary_df['trashed_duration_min'].sum()
+    except KeyError as e:
+        logger.error(f"Missing duration column for pie chart: {e}")
+        # Use available columns
+        total_submitted = summary_df.get('submitted_duration_min', pd.Series([0])).sum()
+        total_accepted = summary_df.get('accepted_duration_min', pd.Series([0])).sum()
+        total_transcribing = summary_df.get('transcribing_duration_min', pd.Series([0])).sum()
+        total_trashed = summary_df.get('trashed_duration_min', pd.Series([0])).sum()
     
     sizes = [total_submitted, total_accepted, total_transcribing, total_trashed]
     labels = ['Submitted', 'Accepted', 'Transcribing', 'Trashed']
@@ -307,16 +325,24 @@ def generate_audio_file_charts(row, vis_dir):
     file_vis_dir = os.path.join(vis_dir, original_id)
     os.makedirs(file_vis_dir, exist_ok=True)
     
-    # Create bar chart comparing counts and durations
+    # Create bar chart comparing counts and durations with error handling
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     
-    # Count data
+    # Count data with fallback for missing states
     categories = ['Submitted', 'Accepted', 'Transcribing', 'Trashed']
-    counts = [row['submitted_count'], row['accepted_count'], row['transcribing_count'], row['trashed_count']]
+    count_cols = ['submitted_count', 'accepted_count', 'transcribing_count', 'trashed_count']
+    duration_cols = ['submitted_duration_min', 'accepted_duration_min', 'transcribing_duration_min', 'trashed_duration_min']
     colors = ['#2196F3', '#4CAF50', '#FFEB3B', '#F44336']  # Blue, Green, Yellow, Red
     
-    # Duration data
-    durations = [row['submitted_duration_min'], row['accepted_duration_min'], row['transcribing_duration_min'], row['trashed_duration_min']]
+    # Safely get counts with defaults
+    counts = []
+    for col in count_cols:
+        counts.append(row.get(col, 0))
+    
+    # Safely get durations with defaults
+    durations = []
+    for col in duration_cols:
+        durations.append(row.get(col, 0))
     
     # Create the bar charts
     ax1.bar(categories, counts, color=colors)
@@ -334,7 +360,7 @@ def generate_audio_file_charts(row, vis_dir):
     for i, v in enumerate(durations):
         ax2.text(i, v + 0.5, f'{v:.1f}', ha='center')
     
-    plt.tight_layout()
+    plt.subplots_adjust(left=0.1, right=0.95, top=0.9, bottom=0.1)
     
     # Save the chart
     bar_file = os.path.join(file_vis_dir, f'{original_id}_bars.png')
@@ -564,8 +590,15 @@ def generate_file_index(all_files):
 def summarize_by_original_id(df):
     """Summarize count and duration of segments per original_id and state"""
 
-    if 'original_id' not in df.columns or 'state' not in df.columns or 'audio_duration' not in df.columns:
-        raise ValueError("Required columns missing in DataFrame")
+    # Validate required columns exist
+    required_cols = ['original_id', 'state', 'audio_duration']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"DataFrame missing required columns: {missing_cols}")
+
+    if df.empty:
+        logger.warning("Empty DataFrame provided to summarize_by_original_id")
+        return pd.DataFrame()
 
     grouped = df.groupby(['original_id', 'state'])
 
@@ -779,16 +812,31 @@ def main():
         engine = get_database_engine()
         df = query_transcription_data(engine)
         
+        # Check if we got any data
+        if df.empty:
+            logger.warning("No transcription data returned from query")
+            # Generate empty reports to avoid GitHub Actions failures
+            empty_summary = "# STT Transcription Report\n\n## No Data\n\nNo transcription data found for the specified criteria.\n"
+            save_outputs(pd.DataFrame(), empty_summary)
+            logger.info("Empty report generated due to no data")
+            return
+        
         # Generate per-original_id summary
         original_summary = summarize_by_original_id(df)
-        original_summary_file = os.path.join(OUTPUT_DIR, f"original_id_breakdown_{datetime.now().strftime(TIMESTAMP_FORMAT)}.csv")
-        original_summary.to_csv(original_summary_file, index=False)
+        if original_summary.empty:
+            logger.warning("No original ID summary generated")
+            # Generate basic report without breakdown
+            summary = generate_summary_report(df, pd.DataFrame())
+        else:
+            # Save breakdown files
+            original_summary_file = os.path.join(OUTPUT_DIR, f"original_id_breakdown_{datetime.now().strftime(TIMESTAMP_FORMAT)}.csv")
+            original_summary.to_csv(original_summary_file, index=False)
 
-        # Also save latest version for GitHub tracking
-        original_summary.to_csv(os.path.join(OUTPUT_DIR, "original_id_breakdown_latest.csv"), index=False)
+            # Also save latest version for GitHub tracking
+            original_summary.to_csv(os.path.join(OUTPUT_DIR, "original_id_breakdown_latest.csv"), index=False)
 
-        # Generate summary report using dataframe and original_summary
-        summary = generate_summary_report(df, original_summary)
+            # Generate summary report using dataframe and original_summary
+            summary = generate_summary_report(df, original_summary)
         
         # File operations
         save_outputs(df, summary)
