@@ -3,8 +3,11 @@
 STT SRT File Generator
 --------------------
 This script generates SRT subtitle files from transcription data for audio files
-where both transcribing_count = 0 and submitted_count = 0, meaning all content has been
-reviewed and is ready for SRT generation.
+where transcribing_count = 0, meaning no segments are currently being transcribed.
+SRT files can be generated even if some segments are still in submitted state.
+
+The script uses reviewed_transcript when available, falling back to transcript
+for segments that haven't been reviewed yet. It never uses inference_transcript.
 
 The script can be run standalone or integrated with the report generation workflow.
 """
@@ -89,7 +92,7 @@ def ensure_output_directory(output_dir):
 def generate_srt_files(breakdown_df=None, transcription_df=None, 
                        breakdown_csv=None, transcription_csv=None, 
                        output_dir=None):
-    """Generate SRT files for original IDs with transcribing_count = 0 and submitted_count = 0
+    """Generate SRT files for original IDs with transcribing_count = 0
     
     Args:
         breakdown_df: DataFrame with breakdown data (if provided, CSV not needed)
@@ -128,17 +131,16 @@ def generate_srt_files(breakdown_df=None, transcription_df=None,
         if missing_breakdown_cols:
             raise ValueError(f"Breakdown data missing required columns: {missing_breakdown_cols}")
             
-        required_transcription_cols = ['original_id', 'file_name', 'reviewed_transcript']
+        required_transcription_cols = ['original_id', 'file_name']
         missing_transcription_cols = [col for col in required_transcription_cols if col not in transcription_df.columns]
         if missing_transcription_cols:
             raise ValueError(f"Transcription data missing required columns: {missing_transcription_cols}")
         
-        # Filter for original_ids with transcribing_count = 0 AND submitted_count = 0
-        # Also ensure we have some eligible IDs to process
-        eligible_ids = breakdown_df[(breakdown_df['transcribing_count'] == 0) & 
-                                  (breakdown_df['submitted_count'] == 0)]['original_id'].tolist()
+        # Filter for original_ids with transcribing_count = 0
+        # This allows SRT generation even if some segments are still in submitted state
+        eligible_ids = breakdown_df[breakdown_df['transcribing_count'] == 0]['original_id'].tolist()
         
-        logger.info(f"Found {len(eligible_ids)} original IDs with transcribing_count = 0 and submitted_count = 0")
+        logger.info(f"Found {len(eligible_ids)} original IDs with transcribing_count = 0")
         
         if not eligible_ids:
             logger.info("No eligible original IDs found for SRT generation")
@@ -222,10 +224,15 @@ def generate_srt_files(breakdown_df=None, transcription_df=None,
                             start_time = milliseconds_to_srt_time(start_ms)
                             end_time = milliseconds_to_srt_time(end_ms)
                             
-                            # Check if reviewed_transcript exists and is not NaN
-                            transcript = row.get('reviewed_transcript', '')
-                            if pd.isna(transcript) or not transcript:
-                                logger.warning(f"No reviewed transcript for {row['file_name']}, skipping")
+                            # Priority: reviewed_transcript > transcript > skip (don't use inference_transcript)
+                            transcript = None
+                            if 'reviewed_transcript' in row and not pd.isna(row['reviewed_transcript']) and row['reviewed_transcript']:
+                                transcript = row['reviewed_transcript']
+                            elif 'transcript' in row and not pd.isna(row['transcript']) and row['transcript']:
+                                transcript = row['transcript']
+                            
+                            if not transcript:
+                                logger.warning(f"No reviewed_transcript or transcript for {row['file_name']}, skipping")
                                 continue
                             
                             # Create the entry
